@@ -1,0 +1,8 @@
+{
+  "name": "Remix do Remix sonic-lab-front-end",
+  "description": "Imported from GitHub: guiSantos006/sonic-lab-front-end",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
