@@ -5,9 +5,10 @@ import React, { useState, useRef } from 'react';
 interface SellViewProps {
   onPublish: (kit: Kit) => void;
   onNavigate: (view: any) => void;
+  creatorName?: string;
 }
 
-export default function SellView({ onPublish, onNavigate }: SellViewProps) {
+export default function SellView({ onPublish, onNavigate, creatorName }: SellViewProps) {
   // Form fields state
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<'drum_kit' | 'sample_pack' | 'preset_bank'>('drum_kit');
@@ -99,7 +100,7 @@ export default function SellView({ onPublish, onNavigate }: SellViewProps) {
     const newKit: Kit = {
       id: `custom-kit-${Date.now()}`,
       title: title,
-      creator: 'ALEXANDER_VOID', // Current logged in profile
+      creator: (creatorName || 'PRODUCER').toUpperCase(),
       category: category,
       price: parseFloat(price) || 29.00,
       description: description,

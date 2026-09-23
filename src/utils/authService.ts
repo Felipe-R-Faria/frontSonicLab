@@ -1,85 +1,183 @@
 /**
  * Authentication Service
- * Handles background POST requests to registration and login endpoints.
+ * Communicates with backend API at http://localhost:8080
  */
 
 export interface RegisterPayload {
   name: string;
   email: string;
-  password?: string;
-  role?: string;
+  password: string;
 }
 
 export interface RegisterResponse {
-  name: string;
-  email: string;
+  name?: string;
+  email?: string;
+  token?: string;
+  message?: string;
   [key: string]: unknown;
 }
 
 export interface LoginPayload {
   email: string;
-  password?: string;
+  password: string;
 }
 
 export interface LoginResponse {
   token: string;
+  name?: string;
+  email?: string;
+  role?: string;
+  user?: {
+    name?: string;
+    email?: string;
+    role?: string;
+    [key: string]: unknown;
+  };
   [key: string]: unknown;
 }
 
-export const REGISTER_ENDPOINT =
-  'https://df5d80cc-a16e-45fd-bd4f-77e15b37d19c.mock.pstmn.io/auth/register';
+export const BACKEND_BASE_URL =
+  (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_BACKEND_URL) ||
+  'http://localhost:8080';
 
-export const LOGIN_ENDPOINT =
-  'https://df5d80cc-a16e-45fd-bd4f-77e15b37d19c.mock.pstmn.io/auth/login';
+export const REGISTER_ENDPOINT = `${BACKEND_BASE_URL}/auth/register`;
+export const LOGIN_ENDPOINT = `${BACKEND_BASE_URL}/auth/login`;
 
 export const TOKEN_STORAGE_KEY = 'sonic_lab_token';
 
 /**
- * Sends a background POST request to the register endpoint.
- * Returns: { name, email }
+ * Internal helper to send POST requests with automatic CORS/proxy fallback
  */
-export async function apiRegister(payload: RegisterPayload): Promise<RegisterResponse> {
-  const response = await fetch(REGISTER_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
+async function postJsonWithFallback(endpoint: string, fallbackPath: string, bodyObj: unknown): Promise<Response> {
+  const headers = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+  };
+  const body = JSON.stringify(bodyObj);
 
-  if (!response.ok) {
-    throw new Error(`Falha no registro (${response.status}: ${response.statusText})`);
+  try {
+    return await fetch(endpoint, {
+      method: 'POST',
+      headers,
+      body,
+    });
+  } catch (directErr) {
+    if (fallbackPath) {
+      try {
+        return await fetch(fallbackPath, {
+          method: 'POST',
+          headers,
+          body,
+        });
+      } catch {
+        throw directErr;
+      }
+    }
+    throw directErr;
   }
-
-  const data: RegisterResponse = await response.json();
-  return data;
 }
 
 /**
- * Sends a background POST request to the login endpoint.
- * Returns: { token }
- * Automatically caches token in localStorage.
+ * Sends a POST request to http://localhost:8080/auth/register with { name, email, password }
+ */
+export async function apiRegister(payload: RegisterPayload): Promise<RegisterResponse> {
+  const requestBody = {
+    name: payload.name.trim(),
+    email: payload.email.trim(),
+    password: payload.password,
+  };
+
+  try {
+    const response = await postJsonWithFallback(
+      REGISTER_ENDPOINT,
+      '/auth/register',
+      requestBody
+    );
+
+    const responseText = await response.text();
+    let data: Record<string, unknown> = {};
+    try {
+      data = responseText ? JSON.parse(responseText) : {};
+    } catch {
+      data = { message: responseText };
+    }
+
+    if (!response.ok) {
+      const errorMsg =
+        (typeof data.message === 'string' && data.message) ||
+        (typeof data.error === 'string' && data.error) ||
+        `Falha no registro (${response.status}: ${response.statusText})`;
+      throw new Error(errorMsg);
+    }
+
+    return data as RegisterResponse;
+  } catch (err: unknown) {
+    if (err instanceof TypeError && err.message.toLowerCase().includes('fetch')) {
+      throw new Error(
+        'Não foi possível conectar ao backend em http://localhost:8080/auth/register. Certifique-se de que sua API está ativa e rodando na porta 8080.'
+      );
+    }
+    throw err;
+  }
+}
+
+/**
+ * Sends a POST request to http://localhost:8080/auth/login with { email, password }
+ * Returns the token and caches it in localStorage.
  */
 export async function apiLogin(payload: LoginPayload): Promise<LoginResponse> {
-  const response = await fetch(LOGIN_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
+  const requestBody = {
+    email: payload.email.trim(),
+    password: payload.password,
+  };
 
-  if (!response.ok) {
-    throw new Error(`Falha na autenticação (${response.status}: ${response.statusText})`);
-  }
+  try {
+    const response = await postJsonWithFallback(
+      LOGIN_ENDPOINT,
+      '/auth/login',
+      requestBody
+    );
 
-  const data: LoginResponse = await response.json();
-  if (data?.token) {
-    setAuthToken(data.token);
+    const responseText = await response.text();
+    let data: Record<string, unknown> = {};
+    try {
+      data = responseText ? JSON.parse(responseText) : {};
+    } catch {
+      data = { message: responseText };
+    }
+
+    if (!response.ok) {
+      const errorMsg =
+        (typeof data.message === 'string' && data.message) ||
+        (typeof data.error === 'string' && data.error) ||
+        `Falha na autenticação (${response.status}: ${response.statusText})`;
+      throw new Error(errorMsg);
+    }
+
+    // Extract token in any format: { token: "..." }, { accessToken: "..." }, etc.
+    const token =
+      (typeof data.token === 'string' && data.token) ||
+      (typeof data.accessToken === 'string' && data.accessToken) ||
+      (typeof data.access_token === 'string' && data.access_token) ||
+      (typeof data.jwt === 'string' && data.jwt) ||
+      (typeof data === 'string' ? data : '');
+
+    if (token) {
+      setAuthToken(token);
+    }
+
+    return {
+      token: token || '',
+      ...data,
+    } as LoginResponse;
+  } catch (err: unknown) {
+    if (err instanceof TypeError && err.message.toLowerCase().includes('fetch')) {
+      throw new Error(
+        'Não foi possível conectar ao backend em http://localhost:8080/auth/login. Certifique-se de que sua API está ativa e rodando na porta 8080.'
+      );
+    }
+    throw err;
   }
-  return data;
 }
 
 /**

@@ -75,26 +75,13 @@ export default function LoginView({
 
   const strength = getPasswordStrength(password);
 
-  // Autofill demo accounts
-  const fillDemoAccount = (accountType: 'alexander' | 'guest') => {
-    setErrorMessage(null);
-    setMode('signin');
-    if (accountType === 'alexander') {
-      setEmail('alexander.void@soniclab.audio');
-      setPassword('SonicStudio2026!');
-    } else {
-      setEmail('gui@gui.com');
-      setPassword('123');
-    }
-  };
-
   // Handle Login Submit
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
 
     if (!email.trim()) {
-      setErrorMessage('Por favor, informe seu e-mail ou nome de produtor.');
+      setErrorMessage('Por favor, informe seu e-mail.');
       return;
     }
     if (!password) {
@@ -105,7 +92,7 @@ export default function LoginView({
     setIsLoading(true);
 
     try {
-      // Background POST to login endpoint
+      // POST to http://localhost:8080/auth/login with { email, password }
       const loginRes = await apiLogin({
         email: email.trim(),
         password: password,
@@ -113,22 +100,19 @@ export default function LoginView({
 
       const authToken = loginRes?.token;
 
-      // Determine user name from email or known accounts
-      const lowerEmail = email.toLowerCase().trim();
-      let formattedName = 'PRODUCER_USER';
-      let formattedRole = 'AUDIO PRODUCER';
+      // Extract producer name from backend response or email
+      const returnedUser = (loginRes?.user as { name?: string; role?: string } | undefined) || {};
+      const formattedName =
+        (typeof loginRes?.name === 'string' && loginRes.name) ||
+        (typeof returnedUser?.name === 'string' && returnedUser.name) ||
+        (email.includes('@') ? email.split('@')[0].toUpperCase().replace(/[^A-Z0-9_]/g, '_') : email.toUpperCase());
 
-      if (lowerEmail === 'gui@gui.com' || lowerEmail.includes('guilherme')) {
-        formattedName = 'GUILHERME';
-        formattedRole = 'SOUND DESIGNER';
-      } else if (lowerEmail.includes('alexander')) {
-        formattedName = 'ALEXANDER_VOID';
-        formattedRole = 'SOUND DESIGNER';
-      } else {
-        formattedName = email.split('@')[0].toUpperCase().replace(/[^A-Z0-9_]/g, '_') || 'PRODUCER_USER';
-      }
+      const formattedRole =
+        (typeof loginRes?.role === 'string' && loginRes.role) ||
+        (typeof returnedUser?.role === 'string' && returnedUser.role) ||
+        'SOUND DESIGNER';
 
-      setSuccessMessage(`Acesso autorizado: Bem-vindo, ${formattedName}!`);
+      setSuccessMessage(`Acesso autorizado: Bem-vindo(a), ${formattedName}!`);
 
       setTimeout(() => {
         setIsLoading(false);
@@ -138,14 +122,14 @@ export default function LoginView({
           email: email.trim(),
           token: authToken,
         });
-      }, 700);
+      }, 600);
     } catch (err: unknown) {
       console.error('Authentication request error:', err);
       setIsLoading(false);
       setErrorMessage(
         err instanceof Error
           ? err.message
-          : 'Erro ao autenticar no servidor. Verifique suas credenciais e tente novamente.'
+          : 'Erro ao autenticar no servidor. Verifique suas credenciais e se a API está rodando em http://localhost:8080.'
       );
     }
   };
@@ -179,30 +163,31 @@ export default function LoginView({
     setIsLoading(true);
 
     try {
-      // Background POST to register endpoint
+      // POST to http://localhost:8080/auth/register with { name, email, password }
       const regRes = await apiRegister({
         name: name.trim(),
         email: email.trim(),
         password: password,
-        role: role,
       });
 
-      // Background POST to login endpoint to obtain auth token
-      let authToken: string | undefined;
-      try {
-        const loginRes = await apiLogin({
-          email: regRes.email || email.trim(),
-          password: password,
-        });
-        authToken = loginRes?.token;
-      } catch (loginErr) {
-        console.warn('Silent token fetch following registration:', loginErr);
+      // POST to http://localhost:8080/auth/login to obtain auth token
+      let authToken: string | undefined = regRes?.token;
+      if (!authToken) {
+        try {
+          const loginRes = await apiLogin({
+            email: regRes.email || email.trim(),
+            password: password,
+          });
+          authToken = loginRes?.token;
+        } catch (loginErr) {
+          console.info('Aguardando login manual para obter token:', loginErr);
+        }
       }
 
       const finalName = (regRes.name || name).trim().toUpperCase().replace(/\s+/g, '_');
       const finalEmail = regRes.email || email.trim();
 
-      setSuccessMessage(`Conta de produtor criada com sucesso! Carregando terminal...`);
+      setSuccessMessage(`Conta de produtor criada com sucesso no backend!`);
 
       setTimeout(() => {
         setIsLoading(false);
@@ -211,17 +196,17 @@ export default function LoginView({
           role: role,
           email: finalEmail,
           location: 'REMOTE STUDIO',
-          bio: `Produtor independente e criador sonoro no ecossistema SONIC_LAB.`,
+          bio: `Produtor musical cadastrado no ecossistema SONIC_LAB.`,
           token: authToken,
         });
-      }, 800);
+      }, 700);
     } catch (err: unknown) {
       console.error('Registration request error:', err);
       setIsLoading(false);
       setErrorMessage(
         err instanceof Error
           ? err.message
-          : 'Erro ao registrar no servidor de autenticação. Tente novamente.'
+          : 'Erro ao registrar no backend (http://localhost:8080/auth/register). Verifique se o servidor está ativo.'
       );
     }
   };
@@ -447,7 +432,7 @@ export default function LoginView({
                         type="text"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        placeholder="ex: alexander.void@soniclab.audio"
+                        placeholder="ex: produtor@estudio.com"
                         className="w-full pl-10 pr-4 py-3 bg-white dark:bg-neutral-900 border border-black dark:border-neutral-700 text-black dark:text-white font-sans text-sm focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white rounded-none"
                         autoComplete="username"
                       />
@@ -854,41 +839,25 @@ export default function LoginView({
                 </div>
               )}
 
-              {/* Quick Demo Access Bar */}
+              {/* Backend API Integration Status */}
               <div className="mt-8 pt-6 border-t border-dashed border-neutral-300 dark:border-neutral-800">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="font-mono text-[10px] text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
-                    // ATALHO PARA TESTES (PREENCHIMENTO RÁPIDO)
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-mono text-[10px] text-neutral-500 dark:text-neutral-400 uppercase tracking-wider font-bold">
+                    // API BACKEND: http://localhost:8080
+                  </span>
+                  <span className="font-mono text-[9px] px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800 font-bold">
+                    CONECTADO
                   </span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    id="btn-demo-alexander"
-                    onClick={() => fillDemoAccount('alexander')}
-                    className="p-2.5 bg-neutral-50 dark:bg-neutral-900/60 hover:bg-neutral-100 dark:hover:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-left transition-colors cursor-pointer group"
-                  >
-                    <div className="font-mono text-[11px] font-bold text-primary group-hover:underline">
-                      ALEXANDER_VOID
-                    </div>
-                    <div className="font-sans text-[10px] text-neutral-500 dark:text-neutral-400">
-                      Sound Designer (Berlin)
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    id="btn-demo-guest"
-                    onClick={() => fillDemoAccount('guest')}
-                    className="p-2.5 bg-neutral-50 dark:bg-neutral-900/60 hover:bg-neutral-100 dark:hover:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-left transition-colors cursor-pointer group"
-                  >
-                    <div className="font-mono text-[11px] font-bold text-primary group-hover:underline">
-                      NOVO PRODUTOR
-                    </div>
-                    <div className="font-sans text-[10px] text-neutral-500 dark:text-neutral-400">
-                      Conta Demo Padrão
-                    </div>
-                  </button>
+                <div className="p-3 bg-neutral-50 dark:bg-neutral-900/60 border border-neutral-300 dark:border-neutral-700 font-mono text-[10px] space-y-1.5 text-neutral-600 dark:text-neutral-400">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-primary">POST /auth/register</span>
+                    <span className="text-neutral-500">{'{ name, email, password }'}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-primary">POST /auth/login</span>
+                    <span className="text-neutral-500">{'{ email, password } ➔ token'}</span>
+                  </div>
                 </div>
               </div>
             </div>

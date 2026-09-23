@@ -34,8 +34,13 @@ export default function App() {
 
   // Authentication State
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    const saved = localStorage.getItem('sonic_lab_auth');
-    return saved !== null ? JSON.parse(saved) : true;
+    try {
+      const token = localStorage.getItem('sonic_lab_token');
+      const saved = localStorage.getItem('sonic_lab_auth');
+      return Boolean(token && saved === 'true');
+    } catch {
+      return false;
+    }
   });
 
   // Master Sound Kits Lists (persisted in localStorage for functional completeness)
@@ -46,30 +51,28 @@ export default function App() {
 
   // User Profile
   const [profile, setProfile] = useState<UserProfile>(() => {
-    const saved = localStorage.getItem('sonic_lab_profile');
-    return saved ? JSON.parse(saved) : DEFAULT_PROFILE;
+    try {
+      const saved = localStorage.getItem('sonic_lab_profile');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed?.name && parsed.name !== 'ALEXANDER_VOID') {
+          return parsed;
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return DEFAULT_PROFILE;
   });
 
   // Purchased inventory tracker
   const [purchasedKits, setPurchasedKits] = useState<Kit[]>(() => {
-    const saved = localStorage.getItem('sonic_lab_purchased');
-    if (saved) return JSON.parse(saved);
-
-    // Default mock setup combined with physical details kit representation
-    const defaultKits: Kit[] = [];
-    PURCHASED_KITS_MOCK.forEach((mock) => {
-      const match = INITIAL_KITS.find((k) => k.id === mock.id) || INITIAL_KITS[0];
-      defaultKits.push({
-        ...match,
-        id: mock.id,
-        title: mock.title,
-        coverImage: mock.coverImage === 'waveform' ? 'waveform' : mock.coverImage,
-        sampleRate: mock.format === 'WAV' ? '24-Bit WAV' : 'Serum Presets',
-        bpm: mock.detail.includes('BPM') ? parseInt(mock.detail) : undefined,
-        tags: [mock.format, mock.detail]
-      });
-    });
-    return defaultKits;
+    try {
+      const saved = localStorage.getItem('sonic_lab_purchased');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
   });
 
   // Cart State Management
@@ -92,11 +95,24 @@ export default function App() {
   const [isRevealed, setIsRevealed] = useState(false);
   const [isTransitionSettled, setIsTransitionSettled] = useState(false);
 
-  // Clear any previously saved completed flags so the boot displays on page load
+  // Clear any previously saved completed flags so the boot displays on page load and wipe old Alexander Void mock
   useEffect(() => {
     try {
       sessionStorage.removeItem('sonic_lab_boot_completed');
       localStorage.removeItem('sonic_lab_boot_completed');
+
+      const savedProfile = localStorage.getItem('sonic_lab_profile');
+      if (savedProfile) {
+        const parsed = JSON.parse(savedProfile);
+        if (parsed?.name === 'ALEXANDER_VOID') {
+          localStorage.removeItem('sonic_lab_profile');
+          localStorage.removeItem('sonic_lab_auth');
+          localStorage.removeItem('sonic_lab_purchased');
+          setProfile(DEFAULT_PROFILE);
+          setIsLoggedIn(false);
+          setPurchasedKits([]);
+        }
+      }
     } catch {
       // ignore
     }
@@ -162,6 +178,9 @@ export default function App() {
   const handleLogout = () => {
     clearAuthToken();
     setIsLoggedIn(false);
+    setProfile(DEFAULT_PROFILE);
+    localStorage.removeItem('sonic_lab_auth');
+    localStorage.removeItem('sonic_lab_profile');
     triggerNotification('Sessão encerrada com sucesso. Você está em modo visitante.');
     handleNavigate('home');
   };
@@ -230,8 +249,10 @@ export default function App() {
   // Fetching parameters
   const currentDetailsKit = kits.find((k) => k.id === selectedKitId) || kits[0];
 
-  // Sounds published by the current active profile (Alexander Void)
-  const creatorPublishedKits = kits.filter((k) => k.creator === 'ALEXANDER_VOID');
+  // Sounds published by the current active profile
+  const creatorPublishedKits = kits.filter(
+    (k) => k.creator && profile.name && k.creator.toUpperCase() === profile.name.toUpperCase()
+  );
 
   return (
     <div className="bg-background text-on-background font-sans min-h-screen flex flex-col antialiased selection:bg-black selection:text-white dark:selection:bg-white dark:selection:text-black transition-colors duration-200 relative">
@@ -360,6 +381,7 @@ export default function App() {
               <SellView
                 onPublish={handlePublishNewKit}
                 onNavigate={handleNavigate}
+                creatorName={profile.name}
               />
             )}
 

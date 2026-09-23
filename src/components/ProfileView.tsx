@@ -472,7 +472,7 @@ export default function ProfileView({
           </div>
         )}
 
-        {/* Tab "For Sale" (Dynamic list of published assets by Alexander) */}
+        {/* Tab "For Sale" (Dynamic list of published assets by user profile) */}
         {activeTab === 'for_sale' && (
           <div className="flex flex-col gap-6 animate-fade-in">
             <div className="flex justify-between items-center pb-2 border-b border-neutral-100 dark:border-neutral-800">
