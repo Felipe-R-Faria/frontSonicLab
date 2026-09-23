@@ -290,16 +290,30 @@ export default function Navbar({
               )}
             </div>
           ) : (
-            /* Liquid Metal Login Button */
-            <LiquidMetalButton
-              id="nav-btn-login"
-              viewMode="text"
-              label="Login"
-              icon={<LogIn className="w-3.5 h-3.5 text-white" />}
-              onClick={() => onNavigate('login')}
-              title="Fazer login"
-              ariaLabel="Fazer login"
-            />
+            /* Liquid Metal Login Button & Register Button */
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <LiquidMetalButton
+                id="nav-btn-login"
+                viewMode="text"
+                label="Login"
+                icon={<LogIn className="w-3.5 h-3.5 text-white" />}
+                onClick={() => onNavigate('login')}
+                title="Fazer login"
+                ariaLabel="Fazer login"
+              />
+              <button
+                id="nav-btn-register"
+                onClick={() => onNavigate('register')}
+                className={`font-mono text-xs px-2.5 sm:px-3 py-1.5 rounded-[9px] border cursor-pointer transition-all ${
+                  currentView === 'register'
+                    ? 'text-primary font-bold border-black dark:border-white bg-black/10 dark:bg-white/15 shadow-sm'
+                    : 'text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-700 hover:border-black dark:hover:border-white hover:text-black dark:hover:text-white bg-black/[0.02] dark:bg-white/[0.04]'
+                }`}
+                title="Criar nova conta"
+              >
+                Cadastrar
+              </button>
+            </div>
           )}
 
           {/* Profile Switcher when not logged in */}

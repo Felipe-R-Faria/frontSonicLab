@@ -31,4 +31,4 @@ export interface UserProfile {
 
 export type ThemeMode = 'light' | 'dark';
 
-export type ViewType = 'home' | 'catalog' | 'sell' | 'details' | 'profile' | 'login';
+export type ViewType = 'home' | 'catalog' | 'sell' | 'details' | 'profile' | 'login' | 'register';

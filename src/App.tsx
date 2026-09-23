@@ -26,11 +26,14 @@ import SellView from './components/SellView';
 import DetailsView from './components/DetailsView';
 import ProfileView from './components/ProfileView';
 import LoginView from './components/LoginView';
+import RegisterView from './components/RegisterView';
 
 export default function App() {
   // Navigation States
   const [currentView, setCurrentView] = useState<ViewType>('home');
   const [selectedKitId, setSelectedKitId] = useState<string>('industrial-tension-vol1');
+  const [registeredEmail, setRegisteredEmail] = useState<string>('');
+  const [loginSuccessNotice, setLoginSuccessNotice] = useState<string | null>(null);
 
   // Authentication State
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
@@ -237,8 +240,19 @@ export default function App() {
 
   // Navigation controller with visual screen refocusing
   const handleNavigate = (view: ViewType) => {
+    if (view !== 'login') {
+      setLoginSuccessNotice(null);
+    }
     setCurrentView(view);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Called when user registers a new account successfully
+  const handleRegisterSuccess = (email: string) => {
+    setRegisteredEmail(email);
+    setLoginSuccessNotice('Conta criada com sucesso! Faça login com seu e-mail e senha para continuar.');
+    setCurrentView('login');
+    triggerNotification('Conta criada com sucesso! Faça login para continuar.');
   };
 
   const handleSelectKitDetails = (id: string) => {
@@ -413,6 +427,15 @@ export default function App() {
                 currentProfile={profile}
                 isAlreadyLoggedIn={isLoggedIn}
                 onLogout={handleLogout}
+                initialEmail={registeredEmail}
+                initialSuccessMessage={loginSuccessNotice}
+              />
+            )}
+
+            {currentView === 'register' && (
+              <RegisterView
+                onRegisterSuccess={handleRegisterSuccess}
+                onNavigate={handleNavigate}
               />
             )}
           </motion.div>
